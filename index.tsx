@@ -6,13 +6,91 @@ import {
   X, ZoomIn
 } from 'lucide-react';
 import emailjs from '@emailjs/browser';
-import { EventInquiry, EventType, SERVICE_OPTIONS } from './types';
-import { generateConsultationPreview } from './services/geminiService';
+import { GoogleGenAI } from "@google/genai";
 
-// CONFIGURAÇÃO DO EMAIL - DADOS REAIS DA ELSA
+// --- CONFIGURAÇÃO ---
 const EMAILJS_SERVICE_ID = "service_7n4fupk"; 
 const EMAILJS_TEMPLATE_ID = "template_htcqtak";
 const EMAILJS_PUBLIC_KEY = "X7k_93aJx_aXL6fbA";
+
+// --- TIPOS E DADOS (Anteriormente em types.ts) ---
+export enum EventType {
+  CASAMENTO = 'Casamento',
+  BATIZADO = 'Batizado',
+  CHA_DE_BEBE = 'Chá de Bebé',
+  CHA_REVELACAO = 'Chá Revelação',
+  ANIVERSARIO = 'Aniversário',
+  OUTRO = 'Outro',
+}
+
+export interface EventInquiry {
+  name: string;
+  email: string;
+  phone: string;
+  eventType: EventType;
+  date: string;
+  location: string;
+  guestCount: number;
+  budget?: string;
+  stylePreferences: string;
+  servicesNeeded: string[];
+  details: string;
+}
+
+export const SERVICE_OPTIONS = [
+  "Planeamento Completo",
+  "Decoração & Design",
+  "Coordenação do Dia",
+  "Design Floral",
+  "Consultoria de Imagem",
+  "Gestão de Fornecedores"
+];
+
+// --- SERVIÇO GEMINI AI (Anteriormente em services/geminiService.ts) ---
+// Nota: Na Vercel, process.env.API_KEY precisa ser configurado nas variáveis de ambiente do projeto.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+const generateConsultationPreview = async (data: EventInquiry): Promise<string> => {
+  try {
+    const prompt = `
+      Ajo como a Elsa Cruz, uma organizadora de eventos de luxo e prestígio em Portugal.
+      Recebi o seguinte pedido de informações através do meu site exclusivo:
+      
+      Nome do Cliente: ${data.name}
+      Tipo de Evento: ${data.eventType}
+      Data Pretendida: ${data.date}
+      Local: ${data.location}
+      Nº Convidados: ${data.guestCount}
+      Orçamento: ${data.budget || "Não especificado"}
+      Estilo/Visão do Cliente: ${data.stylePreferences}
+      Serviços Solicitados: ${data.servicesNeeded.join(', ')}
+      Notas Adicionais: ${data.details}
+
+      Tarefa:
+      Escreve uma resposta curta e muito elegante (máximo 3 parágrafos curtos) dirigida diretamente ao cliente.
+      
+      Objetivos da resposta:
+      1. Agradecer o contacto com distinção.
+      2. Comentar positivamente a visão/estilo do cliente ("${data.stylePreferences}"), sugerindo brevemente como podemos tornar isso mágico e único.
+      3. Transmitir confiança e exclusividade, terminando com uma nota de que entrarei em contacto brevemente para uma reunião.
+
+      Tom de voz:
+      Português de Portugal (PT-PT) impecável, formal mas caloroso ("tu" ou "você" conforme apropriado para luxo, geralmente "você" ou tratamento impessoal elegante), glamoroso e confiante.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+    });
+
+    return response.text || "Obrigada pelo seu amável contacto. Recebemos o seu pedido e entraremos em breve em contacto para desenhar o seu evento de sonho.";
+  } catch (error) {
+    console.error("Error generating response:", error);
+    return "Obrigada pelo seu amável contacto. Recebemos o seu pedido e entraremos em breve em contacto para desenhar o seu evento de sonho.";
+  }
+};
+
+// --- COMPONENTE PRINCIPAL ---
 
 // Mock Data for Gallery
 const GALLERY_CATEGORIES = [
@@ -144,7 +222,7 @@ const App = () => {
     setIsSubmitting(true);
     
     try {
-      // 1. Enviar E-mail (Se configurado)
+      // 1. Enviar E-mail
       if (EMAILJS_PUBLIC_KEY) {
         await emailjs.send(
           EMAILJS_SERVICE_ID,
@@ -165,11 +243,10 @@ const App = () => {
           EMAILJS_PUBLIC_KEY
         );
       } else {
-        // Fallback apenas se as chaves não estiverem lá
         await new Promise(resolve => setTimeout(resolve, 800));
       }
 
-      // 2. Gerar Resposta IA (Feedback imediato para o utilizador)
+      // 2. Gerar Resposta IA
       const response = await generateConsultationPreview(formState);
       setAiResponse(response);
 
